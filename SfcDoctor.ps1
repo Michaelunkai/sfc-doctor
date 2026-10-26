@@ -38,7 +38,7 @@ $ErrorActionPreference = 'Stop'
 $DQ = [char]34
 
 $script:Results = [ordered]@{
-    tool = 'SfcDoctor'; version = '1.0.0'
+    tool = 'SfcDoctor'; version = '1.1.0'
     started = (Get-Date -Format s); passes = @(); repairs = @()
     finalVerdict = $null; runDir = ''
 }
@@ -61,7 +61,7 @@ function Get-CbsSrLines {
                 $sr.DiscardBufferedData()
             }
             while ($null -ne ($line = $sr.ReadLine())) {
-                if ($line.Contains('[SR]')) { $list.Add($line) }
+                if ($line.Contains('[SR]') -or $line.Contains('DEPLOY [Pnp]')) { $list.Add($line) }
             }
         } finally { $sr.Dispose() }
     } finally { $fs.Dispose() }
@@ -79,12 +79,16 @@ function Split-SfcRuns {
             $cur = @()
         }
     }
+    if ((@($cur).Count -gt 0) -and (@($runs).Count -gt 0)) {
+        $lastIdx = @($runs).Count - 1
+        $runs[$lastIdx].Lines = @($runs[$lastIdx].Lines) + @($cur)
+    }
     return $runs
 }
 
 function Get-SfcVerdict {
     param($RunLines)
-    $v = [pscustomobject]@{ Verdict = 'Unknown'; RepairedCount = 0; Unfixable = @() }
+    $v = [pscustomobject]@{ Verdict = 'Unknown'; RepairedCount = 0; Unfixable = @(); PnpOnly = $false }
     if (-not $RunLines) { $v.Verdict = 'NoRun'; return $v }
     $runLines = @($RunLines)
     if ($runLines.Count -eq 0) { $v.Verdict = 'NoRun'; return $v }
@@ -134,7 +138,17 @@ function Get-SfcVerdict {
     if ($unfix.Count -gt 0) { $v.Verdict = 'Unfixable' }
     elseif ($repN -gt 0) { $v.Verdict = 'RepairedAll'; $v.RepairedCount = $repN }
     else { $v.Verdict = 'Clean' }
-    $v.Unfixable = @($unfix | Group-Object -Property File, Component | ForEach-Object { $_.Group[0] })
+    $pnpFail = @{}
+    foreach ($line in $runLines) {
+        if ($line -match 'Failed repairing file: (.+?): \d+$') { $pnpFail[$Matches[1]] = $true }
+    }
+    foreach ($path in @($pnpFail.Keys)) {
+        $unfix += [pscustomobject]@{ File = (Split-Path -Leaf $path); Component = 'PnP/driver-store (SFP)'; TargetPath = $path; Line = 'SFP/DEPLOY flagged' }
+    }
+    $unfix = @($unfix | Group-Object -Property File, Component | ForEach-Object { $_.Group[0] })
+    $v.PnpOnly = ((@($unfix).Count -gt 0) -and (@(@($unfix) | Where-Object { $_.Component -notlike 'PnP*' }).Count -eq 0))
+    $v.Unfixable = $unfix
+    if (@($v.Unfixable).Count -gt 0) { $v.Verdict = 'Unfixable' }
     return $v
 }
 
@@ -331,9 +345,19 @@ function New-FixtureLines {
         ($t + '[SR] Beginning Verify and Repair Transaction'),
         ($t + '[SR] Repair complete')
     )
+    $pnpRun = @(
+        ($t + '[SR] Verifying 100 components'),
+        ($t + '[SR] Verify complete'),
+        ($t + '[SR] Repairing 0 components'),
+        ($t + '[SR] Beginning Verify and Repair Transaction'),
+        ('2026-10-26 12:00:05, Error DEPLOY [Pnp] Corrupt file: C:\WINDOWS\System32\drivers\testdrv.sys'),
+        ('2026-10-26 12:00:05, Error DEPLOY [Pnp] Failed repairing file: C:\WINDOWS\System32\drivers\testdrv.sys: 160'),
+        ($t + '[SR] Repair complete')
+    )
     if ($Kind -eq 'clean') { return $clean }
     if ($Kind -eq 'repaired') { return $repaired }
     if ($Kind -eq 'unfixable_legacy') { return $unfixableLegacy }
+    if ($Kind -eq 'pnp') { return $pnpRun }
     return $unfixable
 }
 
@@ -364,6 +388,9 @@ function Invoke-SelfTest {
     T 'legacy component extracted' ($vl.Unfixable[0].Component -like 'amd64_microsoft-windows-ie*')
     T 'legacy reproject target path extracted' ($vl.Unfixable[0].TargetPath -eq 'C:\Windows\System32\url.dll')
 
+    $vp = Get-SfcVerdict -RunLines (New-FixtureLines -Kind pnp)
+    T 'pnp fixture gives Unfixable despite clean SR lines' ($vp.Verdict -eq 'Unfixable' -and $vp.PnpOnly -eq $true)
+    T 'pnp target path extracted' (@($vp.Unfixable).Count -eq 1 -and $vp.Unfixable[0].TargetPath -eq 'C:\WINDOWS\System32\drivers\testdrv.sys')
     T 'incomplete run detected' ((Get-SfcVerdict -RunLines @('2026 x [SR] Verifying 100 components')).Verdict -eq 'IncompleteRun')
     T 'empty run gives NoRun' ((Get-SfcVerdict -RunLines @()).Verdict -eq 'NoRun')
 
@@ -432,7 +459,7 @@ function Show-Help {
 }
 
 Write-Host ''
-Write-Host 'SfcDoctor v1.0.0 - SFC corruption repair without reboot' -ForegroundColor White
+Write-Host 'SfcDoctor v1.1.0 - SFC corruption repair without reboot' -ForegroundColor White
 
 if ($SelfTest) {
     $okAll = Invoke-SelfTest
@@ -467,6 +494,7 @@ if ($CheckOnly) {
     if ($v.Verdict -eq 'Unfixable') {
         Write-Bad ('unfixable files: ' + $v.Unfixable.Count)
         foreach ($u in $v.Unfixable) { Write-Bad ('  ' + $u.File + ' of ' + $u.Component) }
+        if ($v.PnpOnly) { Write-Inf 'all unfixable entries are SFP/PnP driver-store flags; [SR] component verification is clean' }
         exit 2
     }
     Write-Inf ('verdict: ' + $v.Verdict)

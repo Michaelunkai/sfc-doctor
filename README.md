@@ -85,6 +85,21 @@ Exit codes: `0` clean or fully repaired, `1` still unfixable, `2` unfixable
   never deletes anything except its own temp test files during -SelfTest.
 - `-Status` and `-CheckOnly` are strictly read-only.
 
+## The SFP/PnP driver-store flag class (v1.1.0)
+
+Some systems (notably Windows 11 26100.9444-era with Hyper-V active) hit a known
+class where sfc /scannow prints unable-to-fix solely because of
+DEPLOY [Pnp] Corrupt file / Failed repairing: 160 CBS entries for dozens of
+driver payloads (vmbus, usb, acpi, audio APOs...) while every [SR] line is
+clean. The files are byte-identical to the store and validly signed - the
+undocumented SFP driver-store check false-flags them. SfcDoctor v1.1.0 parses
+these entries and reports them exactly, so -CheckOnly matches your console,
+and classifies them as PnPOnly (store clean, flags only). DISM RestoreHealth,
+pnputil re-staging, CompactOS decompression, hardlink rebuilds and ownership
+fixes were all tested against this class and do not clear it; the definitive
+clear is the next servicing commit (LCU install) or in-place repair, which
+require one reboot. See docs/VERIFICATION.md.
+
 ## Troubleshooting
 
 - **No healthy source found for X** — provide one with `-SourcePath` (a matching

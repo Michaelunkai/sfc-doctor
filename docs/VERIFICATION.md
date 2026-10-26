@@ -45,3 +45,24 @@ reproduced deliberately to test the tool end to end.
 SfcDoctor.ps1 -SelfTest - 18/18 passed: parse gate, modern and legacy CBS
 format parsing, verdict classification, dedupe, target path resolution, run
 splitting, and live repair mechanics on temp files.
+
+
+## Addendum (v1.1.0) - the SFP/PnP driver-store flag class on this machine
+
+A later live scan of the same machine showed sfc /scannow still printing
+unable-to-fix while every [SR] line was clean. Root cause of the message:
+DEPLOY [Pnp] Corrupt file / Failed repairing file: 160 entries for 151
+driver payloads (usb, acpi, vmbus, audio APOs, etc.). Investigated and
+disproven as the trigger: NTFS/CompactOS compression (files decompressed,
+flags persisted), in-use locking (unloaded files also flagged), hardlink
+self-copy (link broken, fresh inode, still flagged), ownership (all
+TrustedInstaller), version skew (same-package same-version files unflagged),
+link count, and pending-file-rename state (PFRO unrelated). DISM
+RestoreHealth and pnputil package re-staging do not clear it. Files are
+byte-identical to the store, correctly versioned and signed - the
+undocumented SFP driver-store check false-flags them (a known community-
+documented class on 26100.9444-era builds, unresolved without servicing
+commit). SfcDoctor v1.1.0 parses DEPLOY/PnP entries, so -CheckOnly now
+reproduces the exact user-facing verdict (151 unfixable, PnPOnly, [SR] clean)
+and distinguishes real corruption from this benign class. Definitive clear:
+next LCU commit or in-place repair (one reboot, Windows mechanism).
