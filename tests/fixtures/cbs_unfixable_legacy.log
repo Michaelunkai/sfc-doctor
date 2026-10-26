@@ -1,0 +1,6 @@
+﻿2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Verifying 100 components
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Cannot repair member file [l:8{4}]"url.dll" of "amd64_microsoft-windows-ie-internetexplorer_31bf3856ad364e35_11.0.26700.1_none_deadbeef"
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Could not reproject file [ml:60{30}]"\??\C:\Windows\System32\url.dll". Source: "\??\C:\Windows\WinSxS\amd64_microsoft-windows-i..inetexplorer_31bf3856ad364e35_11.0.1.1_none_abc\url.dll"
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Repairing 1 components
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Beginning Verify and Repair Transaction
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Repair complete

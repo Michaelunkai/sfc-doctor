@@ -1,0 +1,6 @@
+runs/
+*.log
+*.bak
+*.cab
+Thumbs.db
+!tests/fixtures/*.log

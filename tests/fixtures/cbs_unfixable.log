@@ -1,0 +1,6 @@
+﻿2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Verifying 100 components
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Cannot repair member file [l:10]'whoami.exe' of Microsoft-Windows-WhoAmI, version 10.0.26100.1882, arch amd64, nonSxS, pkt {l:8 b:31bf3856ad364e35} in the store, hash mismatch
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Could not reproject corrupted file \??\C:\Windows\System32\\whoami.exe; source file in store is also corrupted
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Repairing 1 components
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Beginning Verify and Repair Transaction
+2026-10-26 12:00:00, Info                  CSI    00000001 [SR] Repair complete
